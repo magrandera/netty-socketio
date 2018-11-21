@@ -151,8 +151,9 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                                                     req.uri(), origin != null && !origin.equalsIgnoreCase("null"));
 
         boolean result = false;
+        Map<String, Object> saveData = new HashMap<String, Object>();
         try {
-            result = configuration.getAuthorizationListener().isAuthorized(data);
+            result = configuration.getAuthorizationListener().isAuthorized(data, saveData);
         } catch (Exception e) {
             log.error("Authorization error", e);
         }
@@ -187,7 +188,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, clientsBox, transport, disconnectScheduler, configuration);
+        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, saveData, clientsBox, transport, disconnectScheduler, configuration);
         channel.attr(ClientHead.CLIENT).set(client);
         clientsBox.addClient(client);
 
