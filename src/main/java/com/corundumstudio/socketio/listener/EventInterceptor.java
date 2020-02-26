@@ -13,19 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.corundumstudio.socketio.annotation;
+package com.corundumstudio.socketio.listener;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
+import com.corundumstudio.socketio.AckRequest;
+import com.corundumstudio.socketio.transport.NamespaceClient;
+import java.util.List;
 
-import com.corundumstudio.socketio.namespace.Namespace;
-
-public interface AnnotationScanner {
-
-    Class<? extends Annotation> getScanAnnotation();
-
-    void addListener(Namespace namespace, Object object, Method method, Annotation annotation);
-
-    void validate(Method method, Class<?> clazz);
-
+public interface  EventInterceptor {
+    void onEvent(NamespaceClient client, String eventName, List<Object> args, AckRequest ackRequest);
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Nikita Koksharov
+ * Copyright (c) 2012-2019 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -228,6 +228,13 @@ public class SocketIOServer implements ClientListeners {
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {
         mainNamespace.addEventListener(eventName, eventClass, listener);
     }
+
+    @Override
+    public void addEventInterceptor(EventInterceptor eventInterceptor) {
+        mainNamespace.addEventInterceptor(eventInterceptor);
+
+    }
+
 
     @Override
     public void removeAllListeners(String eventName) {

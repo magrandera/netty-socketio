@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Nikita Koksharov
+ * Copyright (c) 2012-2019 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,6 +75,28 @@ public class Packet implements Serializable {
      */
     public <T> T getData() {
         return (T)data;
+    }
+
+    /**
+     * Creates a copy of #{@link Packet} with new namespace set
+     * if it differs from current namespace.
+     * Otherwise, returns original object unchanged
+     */
+    public Packet withNsp(String namespace) {
+        if (this.nsp.equalsIgnoreCase(namespace)) {
+            return this;
+        } else {
+            Packet newPacket = new Packet(this.type);
+            newPacket.setAckId(this.ackId);
+            newPacket.setData(this.data);
+            newPacket.setDataSource(this.dataSource);
+            newPacket.setName(this.name);
+            newPacket.setSubType(this.subType);
+            newPacket.setNsp(namespace);
+            newPacket.attachments = this.attachments;
+            newPacket.attachmentsCount = this.attachmentsCount;
+            return newPacket;
+        }
     }
 
     public void setNsp(String endpoint) {
