@@ -16,6 +16,7 @@
 package com.corundumstudio.socketio;
 
 import com.corundumstudio.socketio.listener.*;
+import com.corundumstudio.socketio.namespace.HttpNamespace;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
@@ -25,6 +26,7 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 
@@ -42,7 +44,7 @@ import com.corundumstudio.socketio.namespace.NamespacesHub;
  * Fully thread-safe.
  *
  */
-public class SocketIOServer implements ClientListeners {
+public class SocketIOServer implements ClientListeners, HttpListeners {
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOServer.class);
 
@@ -51,6 +53,7 @@ public class SocketIOServer implements ClientListeners {
 
     private final NamespacesHub namespacesHub;
     private final SocketIONamespace mainNamespace;
+    private final HttpNamespace httpNamespace;
 
     private SocketIOChannelInitializer pipelineFactory = new SocketIOChannelInitializer();
 
@@ -62,6 +65,7 @@ public class SocketIOServer implements ClientListeners {
         this.configCopy = new Configuration(configuration);
         namespacesHub = new NamespacesHub(configCopy);
         mainNamespace = addNamespace(Namespace.DEFAULT_NAME);
+        httpNamespace = new HttpNamespace(configuration);
     }
 
     public void setPipelineFactory(SocketIOChannelInitializer pipelineFactory) {
@@ -128,7 +132,7 @@ public class SocketIOServer implements ClientListeners {
         log.info("Session store / pubsub factory used: {}", configCopy.getStoreFactory());
         initGroups();
 
-        pipelineFactory.start(configCopy, namespacesHub);
+        pipelineFactory.start(configCopy, namespacesHub, httpNamespace);
 
         Class<? extends ServerChannel> channelClass = NioServerSocketChannel.class;
         if (configCopy.isUseLinuxNativeEpoll()) {
@@ -266,5 +270,8 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addListeners(listeners, listenersClass);
     }
 
-
+    @Override
+    public void addHttpListener(HttpMethod method, String path, HttpListener listener) {
+        httpNamespace.addHttpListener(method, path, listener);
+    }
 }

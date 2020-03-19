@@ -40,8 +40,6 @@ public class Configuration {
     private int workerThreads = 0; // 0 = current_processors_amount * 2
     private boolean useLinuxNativeEpoll;
 
-    private boolean allowCustomRequests = false;
-
     private int upgradeTimeout = 10000;
     private int pingTimeout = 60000;
     private int pingInterval = 25000;
@@ -124,7 +122,6 @@ public class Configuration {
 
         setJsonSupport(new JsonSupportWrapper(conf.getJsonSupport()));
         setContext(conf.getContext());
-        setAllowCustomRequests(conf.isAllowCustomRequests());
 
         setKeyStorePassword(conf.getKeyStorePassword());
         setKeyStore(conf.getKeyStore());
@@ -240,22 +237,6 @@ public class Configuration {
     }
     public void setContext(String context) {
         this.context = context;
-    }
-
-    public boolean isAllowCustomRequests() {
-        return allowCustomRequests;
-    }
-
-    /**
-     * Allow to service custom requests differs from socket.io protocol.
-     * In this case it's necessary to add own handler which handle them
-     * to avoid hang connections.
-     * Default is {@code false}
-     *
-     * @param allowCustomRequests - {@code true} to allow
-     */
-    public void setAllowCustomRequests(boolean allowCustomRequests) {
-        this.allowCustomRequests = allowCustomRequests;
     }
 
     /**

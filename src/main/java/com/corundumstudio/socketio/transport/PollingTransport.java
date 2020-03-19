@@ -47,11 +47,13 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(PollingTransport.class);
 
+    private final String connectPath;
     private final PacketDecoder decoder;
     private final ClientsBox clientsBox;
     private final AuthorizeHandler authorizeHandler;
 
-    public PollingTransport(PacketDecoder decoder, AuthorizeHandler authorizeHandler, ClientsBox clientsBox) {
+    public PollingTransport(String connectPath, PacketDecoder decoder, AuthorizeHandler authorizeHandler, ClientsBox clientsBox) {
+        this.connectPath = connectPath;
         this.decoder = decoder;
         this.authorizeHandler = authorizeHandler;
         this.clientsBox = clientsBox;
@@ -63,9 +65,10 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             FullHttpRequest req = (FullHttpRequest) msg;
             QueryStringDecoder queryDecoder = new QueryStringDecoder(req.uri());
 
+            String path = queryDecoder.path();
             List<String> transport = queryDecoder.parameters().get("transport");
 
-            if (transport != null && NAME.equals(transport.get(0))) {
+            if (transport != null && NAME.equals(transport.get(0)) && path.startsWith(connectPath)) {
                 List<String> sid = queryDecoder.parameters().get("sid");
                 List<String> j = queryDecoder.parameters().get("j");
                 List<String> b64 = queryDecoder.parameters().get("b64");
@@ -87,7 +90,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                     } else if ("false".equals(flag)) {
                         flag = "0";
                     }
-                    Integer enable = Integer.valueOf(flag);
+                    int enable = Integer.parseInt(flag);
                     ctx.channel().attr(EncoderHandler.B64).set(enable == 1);
                 }
 

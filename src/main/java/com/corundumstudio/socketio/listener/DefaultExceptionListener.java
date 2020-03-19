@@ -15,6 +15,7 @@
  */
 package com.corundumstudio.socketio.listener;
 
+import com.corundumstudio.socketio.HttpRequestSignature;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.util.List;
@@ -30,6 +31,11 @@ public class DefaultExceptionListener extends ExceptionListenerAdapter {
 
     @Override
     public void onEventException(Exception e, List<Object> args, SocketIOClient client) {
+        log.error(e.getMessage(), e);
+    }
+
+    @Override
+    public void onHttpException(Exception e, HttpRequestSignature signature) {
         log.error(e.getMessage(), e);
     }
 

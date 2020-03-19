@@ -70,7 +70,7 @@ public class ClientHead {
     private volatile Transport currentTransport;
 
     public ClientHead(UUID sessionId, AckManager ackManager, DisconnectableHub disconnectable,
-            StoreFactory storeFactory, HandshakeData handshakeData, Map<String, Object> saveData, ClientsBox clientsBox, Transport transport, CancelableScheduler disconnectScheduler,
+            StoreFactory storeFactory, Map<String, Object> storeData, HandshakeData handshakeData, ClientsBox clientsBox, Transport transport, CancelableScheduler disconnectScheduler,
             Configuration configuration) {
         this.sessionId = sessionId;
         this.ackManager = ackManager;
@@ -82,7 +82,7 @@ public class ClientHead {
         this.disconnectScheduler = disconnectScheduler;
         this.configuration = configuration;
 
-        for(Map.Entry<String, Object> entry : saveData.entrySet()) {
+        for(Map.Entry<String, Object> entry : storeData.entrySet()) {
             this.store.set(entry.getKey(), entry.getValue());
         }
 

@@ -26,15 +26,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import com.corundumstudio.socketio.*;
+import com.corundumstudio.socketio.namespace.HttpNamespace;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.HttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.corundumstudio.socketio.Configuration;
-import com.corundumstudio.socketio.Disconnectable;
-import com.corundumstudio.socketio.DisconnectableHub;
-import com.corundumstudio.socketio.HandshakeData;
-import com.corundumstudio.socketio.SocketIOClient;
-import com.corundumstudio.socketio.Transport;
 import com.corundumstudio.socketio.ack.AckManager;
 import com.corundumstudio.socketio.messages.HttpErrorMessage;
 import com.corundumstudio.socketio.namespace.Namespace;
@@ -54,13 +54,6 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
@@ -74,18 +67,20 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     private final String connectPath;
     private final Configuration configuration;
     private final NamespacesHub namespacesHub;
+    private final HttpNamespace httpNamespace;
     private final StoreFactory storeFactory;
     private final DisconnectableHub disconnectable;
     private final AckManager ackManager;
     private final ClientsBox clientsBox;
 
-    public AuthorizeHandler(String connectPath, CancelableScheduler scheduler, Configuration configuration, NamespacesHub namespacesHub, StoreFactory storeFactory,
-            DisconnectableHub disconnectable, AckManager ackManager, ClientsBox clientsBox) {
+    public AuthorizeHandler(String connectPath, CancelableScheduler scheduler, Configuration configuration, NamespacesHub namespacesHub, HttpNamespace httpNamespace, StoreFactory storeFactory,
+                            DisconnectableHub disconnectable, AckManager ackManager, ClientsBox clientsBox) {
         super();
         this.connectPath = connectPath;
         this.configuration = configuration;
         this.disconnectScheduler = scheduler;
         this.namespacesHub = namespacesHub;
+        this.httpNamespace = httpNamespace;
         this.storeFactory = storeFactory;
         this.disconnectable = disconnectable;
         this.ackManager = ackManager;
@@ -115,9 +110,8 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             Channel channel = ctx.channel();
             QueryStringDecoder queryDecoder = new QueryStringDecoder(req.uri());
 
-            if (!configuration.isAllowCustomRequests()
-                    && !queryDecoder.path().startsWith(connectPath)) {
-                HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
+            if (!httpNamespace.hasListeners() && !queryDecoder.path().startsWith(connectPath)) {
+                io.netty.handler.codec.http.HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
                 channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
                 req.release();
                 return;
@@ -145,26 +139,45 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             headers.put(name, values);
         }
 
-        HandshakeData data = new HandshakeData(req.headers(), params,
+        HandshakeData handshakeData = new HandshakeData(req.headers(), params,
                 (InetSocketAddress)channel.remoteAddress(),
                 (InetSocketAddress)channel.localAddress(),
                 req.uri(), origin != null && !origin.equalsIgnoreCase("null"));
 
-        boolean result = false;
-        Map<String, Object> saveData = new HashMap<String, Object>();
+        AuthorizationResponse authorizationResponse = null;
         try {
-            result = configuration.getAuthorizationListener().isAuthorized(data, saveData);
+            authorizationResponse = configuration.getAuthorizationListener().isAuthorized(handshakeData);
         } catch (Exception e) {
-            log.error("Authorization error", e);
+            log.error("AuthorizationListener error", e);
         }
 
-        if (!result) {
-            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.UNAUTHORIZED);
-            channel.writeAndFlush(res)
-                    .addListener(ChannelFutureListener.CLOSE);
-            log.debug("Handshake unauthorized, query params: {} headers: {}", params, headers);
+        if (authorizationResponse == null) {
+            authorizationResponse = UnauthorizedResponse.UNAUTHORIZED();
+        }
+
+        if (authorizationResponse instanceof UnauthorizedResponse) {
+            UnauthorizedResponse unauthorizedResponse = (UnauthorizedResponse) authorizationResponse;
+
+            DefaultFullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, unauthorizedResponse.getHttpResponseStatus());
+            if (unauthorizedResponse.getBody() != null) {
+                ByteBuf buf = Unpooled.copiedBuffer(unauthorizedResponse.getBody(), unauthorizedResponse.getCharset());
+                res.content().writeBytes(buf);
+                buf.release();
+                res.headers().set(HttpHeaderNames.CONTENT_TYPE, unauthorizedResponse.getContentType() + "; charset=" + unauthorizedResponse.getCharset().displayName().toLowerCase());
+                res.headers().set(HttpHeaderNames.CONTENT_LENGTH, res.content().readableBytes());
+            }
+            if (unauthorizedResponse.getHeaders() != null) {
+                res.headers().add(unauthorizedResponse.getHeaders());
+            }
+
+            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+            log.debug("Handshake UNAUTHORIZED, query params: {} headers: {}", params, headers);
             return false;
         }
+
+        // authorized
+        AuthorizedResponse authorizedResponse = (AuthorizedResponse) authorizationResponse;
+        Map<String, Object> storeData = authorizedResponse.getClientData();
 
         UUID sessionId = null;
         if (configuration.isRandomSession()) {
@@ -176,7 +189,6 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         List<String> transportValue = params.get("transport");
         if (transportValue == null) {
             log.error("Got no transports for request {}", req.uri());
-
             HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.UNAUTHORIZED);
             channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
             return false;
@@ -193,7 +205,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, saveData, clientsBox, transport, disconnectScheduler, configuration);
+        ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, storeData, handshakeData, clientsBox, transport, disconnectScheduler, configuration);
         channel.attr(ClientHead.CLIENT).set(client);
         clientsBox.addClient(client);
 

@@ -61,7 +61,7 @@ public class WebSocketTransportTest {
   }
 
   private EmbeddedChannel createChannel() {
-    return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, null) {
+    return new EmbeddedChannel(new WebSocketTransport("", false, null, null, null, null) {
       /*
        * (non-Javadoc)
        * 

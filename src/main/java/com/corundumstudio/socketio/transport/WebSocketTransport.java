@@ -15,15 +15,6 @@
  */
 package com.corundumstudio.socketio.transport;
 
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
-import com.corundumstudio.socketio.protocol.Packet;
-import com.corundumstudio.socketio.protocol.PacketType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.corundumstudio.socketio.Configuration;
 import com.corundumstudio.socketio.SocketIOChannelInitializer;
 import com.corundumstudio.socketio.Transport;
@@ -31,27 +22,24 @@ import com.corundumstudio.socketio.handler.AuthorizeHandler;
 import com.corundumstudio.socketio.handler.ClientHead;
 import com.corundumstudio.socketio.handler.ClientsBox;
 import com.corundumstudio.socketio.messages.PacketsMessage;
+import com.corundumstudio.socketio.protocol.Packet;
+import com.corundumstudio.socketio.protocol.PacketType;
 import com.corundumstudio.socketio.scheduler.CancelableScheduler;
 import com.corundumstudio.socketio.scheduler.SchedulerKey;
-
 import io.netty.buffer.ByteBufHolder;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.*;
 import io.netty.channel.ChannelHandler.Sharable;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
-import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
-import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
-import io.netty.util.ReferenceCountUtil;
+import io.netty.handler.codec.http.websocketx.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Sharable
 public class WebSocketTransport extends ChannelInboundHandlerAdapter {
@@ -65,11 +53,13 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
     private final Configuration configuration;
     private final ClientsBox clientsBox;
 
+    private final String connectPath;
     private final boolean isSsl;
 
-    public WebSocketTransport(boolean isSsl,
+    public WebSocketTransport(String connectPath, boolean isSsl,
             AuthorizeHandler authorizeHandler, Configuration configuration,
             CancelableScheduler scheduler, ClientsBox clientsBox) {
+        this.connectPath = connectPath;
         this.isSsl = isSsl;
         this.authorizeHandler = authorizeHandler;
         this.configuration = configuration;
@@ -101,7 +91,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             List<String> transport = queryDecoder.parameters().get("transport");
             List<String> sid = queryDecoder.parameters().get("sid");
 
-            if (transport != null && NAME.equals(transport.get(0))) {
+            if (transport != null && NAME.equals(transport.get(0)) && path.startsWith(connectPath)) {
                 try {
                     if (!configuration.getTransports().contains(Transport.WEBSOCKET)) {
                         log.debug("{} transport not supported by configuration.", Transport.WEBSOCKET);

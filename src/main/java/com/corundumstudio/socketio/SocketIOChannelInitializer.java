@@ -23,17 +23,12 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
+import com.corundumstudio.socketio.handler.*;
+import com.corundumstudio.socketio.namespace.HttpNamespace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.corundumstudio.socketio.ack.AckManager;
-import com.corundumstudio.socketio.handler.AuthorizeHandler;
-import com.corundumstudio.socketio.handler.ClientHead;
-import com.corundumstudio.socketio.handler.ClientsBox;
-import com.corundumstudio.socketio.handler.EncoderHandler;
-import com.corundumstudio.socketio.handler.InPacketHandler;
-import com.corundumstudio.socketio.handler.PacketListener;
-import com.corundumstudio.socketio.handler.WrongUrlHandler;
 import com.corundumstudio.socketio.namespace.NamespacesHub;
 import com.corundumstudio.socketio.protocol.JsonSupport;
 import com.corundumstudio.socketio.protocol.PacketDecoder;
@@ -74,6 +69,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     public static final String SSL_HANDLER = "ssl";
 
     public static final String RESOURCE_HANDLER = "resourceHandler";
+    public static final String HTTP_REQUEST_HANDLER = "httpRequestHandler";
     public static final String WRONG_URL_HANDLER = "wrongUrlBlocker";
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOChannelInitializer.class);
@@ -82,6 +78,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
     private ClientsBox clientsBox = new ClientsBox();
     private AuthorizeHandler authorizeHandler;
+    private HttpRequestHandler httpRequestHandler;
     private PollingTransport xhrPollingTransport;
     private WebSocketTransport webSocketTransport;
     private WebSocketServerCompressionHandler webSocketTransportCompression = new WebSocketServerCompressionHandler();
@@ -99,7 +96,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         scheduler.update(ctx);
     }
 
-    public void start(Configuration configuration, NamespacesHub namespacesHub) {
+    public void start(Configuration configuration, NamespacesHub namespacesHub, HttpNamespace httpNamespace) {
         this.configuration = configuration;
 
         ackManager = new AckManager(scheduler);
@@ -120,10 +117,10 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         }
 
         StoreFactory factory = configuration.getStoreFactory();
-        authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, factory, this, ackManager, clientsBox);
+        authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, httpNamespace, factory, this, ackManager, clientsBox);
         factory.init(namespacesHub, authorizeHandler, jsonSupport);
-        xhrPollingTransport = new PollingTransport(decoder, authorizeHandler, clientsBox);
-        webSocketTransport = new WebSocketTransport(isSsl, authorizeHandler, configuration, scheduler, clientsBox);
+        xhrPollingTransport = new PollingTransport(connectPath, decoder, authorizeHandler, clientsBox);
+        webSocketTransport = new WebSocketTransport(connectPath, isSsl, authorizeHandler, configuration, scheduler, clientsBox);
 
         PacketListener packetListener = new PacketListener(ackManager, namespacesHub, xhrPollingTransport, scheduler);
 
@@ -189,6 +186,8 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             pipeline.addLast(WEB_SOCKET_TRANSPORT_COMPRESSION, new WebSocketServerCompressionHandler());
         }
         pipeline.addLast(WEB_SOCKET_TRANSPORT, webSocketTransport);
+
+        pipeline.addLast(HTTP_REQUEST_HANDLER, httpRequestHandler);
 
         pipeline.addLast(SOCKETIO_ENCODER, encoderHandler);
 

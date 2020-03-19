@@ -15,6 +15,7 @@
  */
 package com.corundumstudio.socketio.listener;
 
+import com.corundumstudio.socketio.HttpRequestSignature;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.util.List;
@@ -24,6 +25,8 @@ import com.corundumstudio.socketio.SocketIOClient;
 public interface ExceptionListener {
 
     void onEventException(Exception e, List<Object> args, SocketIOClient client);
+
+    void onHttpException(Exception e, HttpRequestSignature signature);
 
     void onDisconnectException(Exception e, SocketIOClient client);
 
